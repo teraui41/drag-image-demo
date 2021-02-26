@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
+import classnames from "classnames";
 import imageCompression from "browser-image-compression";
 import ImageItem from "./components/ImageItem";
 import "./App.scss";
@@ -38,24 +39,31 @@ const getDataUrl = (file, id, images, setImages) => {
   reader.readAsDataURL(file);
 };
 
-const getTransferData = (images, setImages) => async (event) => {
-  event.preventDefault();
-  event.stopPropagation();
-
-  for await (let file of event.dataTransfer.files) {
-    await compressImage(file, images, setImages);
-  }
-};
-
-const getUploadImage = (images, setImages) => async (event) => {
-  const files = event.target.files;
-
+const handleCompressImage = async (files, images, setImages) => {
   const imageSet = getImagesFormat(files);
   setImages((state) => [...state, ...imageSet]);
 
   for await (let image of imageSet) {
-    await compressImage(image.file, image.id, [...images, ...imageSet], setImages);
+    await compressImage(
+      image.file,
+      image.id,
+      [...images, ...imageSet],
+      setImages
+    );
   }
+};
+
+const getTransferData = (images, setImages, setIsDragenter) => async (
+  event
+) => {
+  event.preventDefault();
+  event.stopPropagation();
+  // setIsDragenter(false);
+  await handleCompressImage(event.dataTransfer.files, images, setImages);
+};
+
+const getUploadImage = (images, setImages) => async (event) => {
+  await handleCompressImage(event.target.files, images, setImages);
 };
 
 const compressImage = async (imageFile, id, images, setImages) => {
@@ -77,12 +85,23 @@ const preventDefault = (event) => {
   event.stopPropagation();
 };
 
+const onDragenter = (setIsDragenter) => () => {
+  setIsDragenter(true);
+};
+
+const onDragLeave = (setIsDragenter) => () => {
+  setIsDragenter(false);
+};
+
 function App() {
   const [images, setImages] = useState([]);
+  const [isDragenter, setIsDragenter] = useState(false);
   const dropAreaRef = useRef(null);
 
-  const handleTransferData = getTransferData(images, setImages);
+  const handleTransferData = getTransferData(images, setImages, setIsDragenter);
   const handleImageUpload = getUploadImage(images, setImages);
+  const handleOnDragenter = onDragenter(setIsDragenter);
+  const handleOnDragLeave = onDragLeave(setIsDragenter);
 
   useEffect(() => {
     const dropArea = dropAreaRef.current;
@@ -90,24 +109,33 @@ function App() {
     if (dropArea !== null) {
       dropArea.addEventListener("dragover", preventDefault, false);
       dropArea.addEventListener("drop", handleTransferData, false);
+      dropArea.addEventListener("dragenter", handleOnDragenter, false);
+      dropArea.addEventListener("dragleave", handleOnDragLeave, false);
     }
 
     return () => {
       if (dropArea !== null) {
         dropArea.removeEventListener("dragover", preventDefault);
         dropArea.removeEventListener("drop", handleTransferData);
+        dropArea.removeEventListener("dragenter", handleOnDragenter);
+        dropArea.removeEventListener("dragleave", handleOnDragLeave);
       }
     };
-  }, [dropAreaRef, handleTransferData]);
+  }, [dropAreaRef, handleTransferData, handleOnDragLeave, handleOnDragenter]);
 
   return (
     <div className='App'>
-      <div ref={dropAreaRef} className='image-container'>
+      <div
+        className={classnames("image-container", {
+          active: isDragenter,
+        })}
+      >
         <div>
           {images.map((item, index) => {
             return <ImageItem key={`${item.filename}_${index}`} {...item} />;
           })}
         </div>
+        <div ref={dropAreaRef} className='drop-mask'></div>
         <label htmlFor='upload_file' className='upload-image-button'>
           Click to upload image.
         </label>
