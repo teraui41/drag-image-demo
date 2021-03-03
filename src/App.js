@@ -58,7 +58,7 @@ const getTransferData = (images, setImages, setIsDragenter) => async (
 ) => {
   event.preventDefault();
   event.stopPropagation();
-  // setIsDragenter(false);
+  setIsDragenter(false);
   await handleCompressImage(event.dataTransfer.files, images, setImages);
 };
 
